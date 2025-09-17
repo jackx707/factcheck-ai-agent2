@@ -1,19 +1,23 @@
 import streamlit as st
 import requests
-import openai
 import json
 import time
 from datetime import datetime
 import re
 import os
 
-# Initialize OpenAI
+# Initialize OpenAI with new library
 try:
-    openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
-    if not openai.api_key:
-        openai.api_key = None
-except:
-    openai.api_key = None
+    from openai import OpenAI
+    api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+    if api_key:
+        client = OpenAI(api_key=api_key)
+        openai_working = True
+    else:
+        openai_working = False
+except Exception as e:
+    st.warning(f"OpenAI initialization failed: {str(e)}")
+    openai_working = False
 
 # Page configuration
 st.set_page_config(
@@ -92,11 +96,11 @@ def extract_claims(text):
 
 def extract_claims_ai(text):
     """Extract factual claims from text using OpenAI"""
-    if not openai.api_key:
+    if not openai_working:
         return extract_claims(text)
     
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": """You are a claim extraction expert. Extract factual claims from the given text that can be verified or fact-checked. 
@@ -225,13 +229,13 @@ def analyze_claim_credibility(claim, search_results):
 
 def analyze_claim_with_ai(claim, search_results):
     """Analyze claim credibility using OpenAI"""
-    if not openai.api_key:
+    if not openai_working:
         return analyze_claim_credibility(claim, search_results)
     
     try:
         sources_text = "\n".join([f"Source: {r['title']}\nContent: {r['snippet']}" for r in search_results])
         
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": """You are a fact-checking expert. Analyze the given claim against the provided sources and return a JSON response with:
@@ -293,7 +297,7 @@ def fact_check_claim(claim):
         progress_bar.progress(75)
         time.sleep(1)
         
-        if openai.api_key:
+        if openai_working:
             verdict, confidence, color, reasoning, evidence = analyze_claim_with_ai(claim, search_results)
         else:
             verdict, confidence, color = analyze_claim_credibility(claim, search_results)
@@ -313,14 +317,14 @@ def fact_check_claim(claim):
             'reasoning': reasoning,
             'evidence': evidence,
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'ai_powered': bool(openai.api_key)
+            'ai_powered': bool(openai_working)
         }
 
 # Main App Interface
 st.markdown('<h1 class="main-header">🔍 FactCheck AI Agent</h1>', unsafe_allow_html=True)
 
 # Show AI status
-if openai.api_key:
+if openai_working:
     st.markdown('<p class="subtitle">🤖 AI-powered fact-checking with GPT-3.5 • Real-time source verification</p>', unsafe_allow_html=True)
     st.success("✅ AI Analysis Enabled - Using OpenAI GPT-3.5 for intelligent fact-checking")
 else:
@@ -354,14 +358,14 @@ with col2:
 
 # Process fact-check
 if check_button and user_input.strip():
-    if openai.api_key:
+    if openai_working:
         claims = extract_claims_ai(user_input)
     else:
         claims = extract_claims(user_input)
     
     if claims:
         st.markdown("---")
-        if openai.api_key:
+        if openai_working:
             st.markdown("## 🤖 AI Fact-Check Results")
         else:
             st.markdown("## 📊 Fact-Check Results")
@@ -453,7 +457,7 @@ with st.sidebar:
     """)
     
     st.markdown("### 🎯 Features Demo'd")
-    if openai.api_key:
+    if openai_working:
         st.markdown("""
         ✅ AI-powered claim extraction (GPT-3.5)  
         ✅ Intelligent reasoning analysis  
