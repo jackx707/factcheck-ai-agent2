@@ -9,7 +9,14 @@ import os
 # Initialize OpenAI with new library
 try:
     from openai import OpenAI
-    api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+    # Try environment variable first (Railway), then Streamlit secrets
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("OPENAI_API_KEY")
+        except:
+            api_key = None
+    
     if api_key:
         client = OpenAI(api_key=api_key)
         openai_working = True
